@@ -4,9 +4,10 @@ from pygame import Rect, Surface
 import random
 import os
 import kezmenu
-
+import numpy as np
 from tetrominoes import list_of_tetrominoes
 from tetrominoes import rotate
+from tetrominoes import shape_str
 
 from scores import load_score, write_score
 
@@ -35,6 +36,11 @@ HEIGHT = (MATRIX_HEIGHT-2)*BLOCKSIZE + BORDERWIDTH*2 + MATRIS_OFFSET*2
 TRICKY_CENTERX = WIDTH-(WIDTH-(MATRIS_OFFSET+BLOCKSIZE*MATRIX_WIDTH+BORDERWIDTH*2))/2
 
 VISIBLE_MATRIX_HEIGHT = MATRIX_HEIGHT - 2
+
+def print_state(matrix):
+
+    print(matrix)
+    print("-" * 8)  # séparateur pour une nouvelle frame
 
 
 class Matris(object):
@@ -437,14 +443,20 @@ class Game(object):
         matris_border = Surface((MATRIX_WIDTH*BLOCKSIZE+BORDERWIDTH*2, VISIBLE_MATRIX_HEIGHT*BLOCKSIZE+BORDERWIDTH*2))
         matris_border.fill(BORDERCOLOR)
         screen.blit(matris_border, (MATRIS_OFFSET,MATRIS_OFFSET))
-        
-        self.redraw()
 
+        self.redraw()
+        state_encoder = StateEncoder(self.matris)
         while True:
             try:
                 timepassed = clock.tick(50)
                 if self.matris.update((timepassed / 1000.) if not self.matris.paused else 0):
                     self.redraw()
+
+                # Afficher le state si on appuie sur D
+                keys = pygame.key.get_pressed()
+                if keys[pygame.K_d]:
+                    arrayState = state_encoder.get_state()
+                    print_state(arrayState)
             except GameOver:
                 return
       
@@ -593,6 +605,84 @@ def construct_nightmare(size):
     del arr
     return surf
 
+class StateEncoder:
+    def __init__(self, matris):
+        self.matris = matris
+
+    def get_state(self):
+        """
+        Retourne le state sous forme :
+        [h0, h1, h2, ..., h9]
+        où hX = hauteur du bloc occupé le plus haut dans la colonne X,
+        mesurée à partir du bas (0 = colonne vide).
+        """
+        board = self.matrix_to_array()
+        heights = self.get_column_heights(board)
+        piece_info = self.get_piece_info()
+        state = heights + piece_info
+        return np.array(state, dtype=int)
+
+    def matrix_to_array(self):
+        """
+        Convertit self.matris.matrix (dict) → numpy array (20x10).
+        """
+        height = MATRIX_HEIGHT
+        width = MATRIX_WIDTH
+        arr = np.zeros((height, width), dtype=int)
+
+        for (y, x), cell in self.matris.matrix.items():
+            if cell is not None:
+                arr[y, x] = 1
+
+        return arr
+
+    def get_column_heights(self, board):
+        """
+        Retourne la hauteur du bloc le plus haut pour chaque colonne.
+        0 signifie qu'il n'y a aucun bloc dans la colonne.
+        """
+        height, width = board.shape
+        heights = []
+
+        for x in range(width):
+            col_height = 0
+            for y in range(height):
+                if board[y, x] != 0:
+                    col_height = height - y    # hauteur mesurée depuis le bas
+                    break
+            heights.append(col_height)
+
+        return heights
+
+    def get_piece_info(self):
+        """
+        Retourne [piece_type, rotation, x, y]
+        - piece_type : entier encodant le nom de la pièce
+        - rotation : self.matris.tetromino_rotation
+        - x, y : coordonnées (x horizontal, y vertical) de self.matris.tetromino_position
+        """
+        # model de la pièce (namedtuple avec color, shape)
+        piece_model = self.matris.current_tetromino
+
+        # obtenir le nom via shape_str (importé depuis tetrominoes)
+        piece_name = shape_str(piece_model.shape)
+
+        # liste dans l'ordre que tu veux pour encoder en entier
+        piece_names = ["long", "square", "hat", "right_snake",
+                       "left_snake", "left_gun", "right_gun"]
+        try:
+            piece_type = piece_names.index(piece_name)
+        except ValueError:
+            # fallback si shape_str renvoie autre chose
+            piece_type = 0
+
+        # rotation et position viennent de Matris (valeurs dynamiques)
+        rotation = getattr(self.matris, "tetromino_rotation", 0)
+        pos = getattr(self.matris, "tetromino_position", (0, 0))
+        posY, posX = pos
+
+        # on renvoie x puis y pour être cohérent avec l'usage antérieur
+        return [piece_type, rotation, posX, posY]
 
 if __name__ == '__main__':
     pygame.init()
