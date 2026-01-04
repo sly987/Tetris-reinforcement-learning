@@ -87,12 +87,12 @@ reward = lignes × 100 + 1 - game_over × 500
 | UP/DOWN | Ajuster vitesse |
 | ESC | Quitter |
 
-## Performances
 
-Avec les poids par défaut :
-- Moyenne : ~8 lignes par partie
-- Maximum : ~15 lignes
 
 ## Auteur
 
 Projet réalisé dans le cadre du cours "Apprentissage par Renforcement" - M2 2025-2026
+
+Sid ARIFI
+Yannick WENG
+Mouhamed Mountaga DIAO
